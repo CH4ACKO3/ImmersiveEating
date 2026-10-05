@@ -96,6 +96,14 @@ public final class CameraShake {
         float interpPitch = Mth.lerp(partialTick, prevPitch, pitch);
         float interpRoll = Mth.lerp(partialTick, prevRoll, roll);
 
+        // Leave the incoming camera angles untouched when the shake has settled.
+        // In particular, an idle offset must not recompose rotation at +/-90 degrees.
+        if (Math.abs(interpYaw) < 1.0E-4F
+                && Math.abs(interpPitch) < 1.0E-4F
+                && Math.abs(interpRoll) < 1.0E-4F) {
+            return;
+        }
+
         event.setYaw(event.getYaw() + interpYaw);
         event.setPitch(event.getPitch() + interpPitch);
         event.setRoll(event.getRoll() + interpRoll);
