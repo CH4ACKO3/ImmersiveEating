@@ -1,13 +1,12 @@
 package org.toame.food.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.phys.Vec3;
-import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -19,13 +18,8 @@ import software.bernie.geckolib.cache.object.GeoVertex;
 public final class VanillaArmRenderer {
 
     private static final float PIXEL = 1.0F / 16.0F;
-    private VanillaArmRenderer() {
 
-    }
-
-    public record CapturedArm(HumanoidArm arm, Matrix4f pose, Matrix3f normal) {
-
-    }
+    public record CapturedArm(HumanoidArm arm, Matrix4f pose, Matrix3f normal) { }
 
     public static boolean isArmBone(GeoBone bone) {
         if (isDedicatedAnchor(bone)) {
@@ -33,8 +27,8 @@ public final class VanillaArmRenderer {
         }
         return getArm(bone) != null && !hasDedicatedAnchorChild(bone);
     }
-    @Nullable
-    public static CapturedArm captureArmPose(PoseStack poseStack, GeoBone bone) {
+
+    public static CapturedArm captureArmPose(PoseStack poseStack, GeoBone bone, boolean mirrorModel) {
         HumanoidArm arm = getArm(bone);
         GeoCube armCube = findArmCube(bone);
 
@@ -48,13 +42,20 @@ public final class VanillaArmRenderer {
             return null;
         }
 
-        Matrix4f armPose = createPreviewCubeArmPose(poseStack, arm, armCube);
-        CapturedArm capturedArm = new CapturedArm(arm, armPose, new Matrix3f(armPose).normal());
+        HumanoidArm renderedArm = mirrorModel ? opposite(arm) : arm;
+        Matrix4f armPose = createPreviewCubeArmPose(poseStack, renderedArm, armCube,
+                ArmModelOffset.forPlayer(Minecraft.getInstance().player).matrixFor(renderedArm));
+        CapturedArm capturedArm = new CapturedArm(renderedArm, armPose, new Matrix3f(armPose).normal());
         poseStack.popPose();
         return capturedArm;
     }
 
-    public static void renderCapturedArm(CapturedArm capturedArm, MultiBufferSource bufferSource, int packedLight, float partialTick) {
+    private static HumanoidArm opposite(HumanoidArm arm) {
+        return arm == HumanoidArm.RIGHT ? HumanoidArm.LEFT : HumanoidArm.RIGHT;
+    }
+
+    public static void renderCapturedArm(CapturedArm capturedArm, MultiBufferSource bufferSource, int packedLight,
+                                         float partialTick, boolean mirrored) {
         Minecraft minecraft = Minecraft.getInstance();
 
         if (minecraft.player == null || minecraft.player.isInvisible()) {
@@ -65,7 +66,8 @@ public final class VanillaArmRenderer {
         poseStack.last().pose().set(capturedArm.pose());
         poseStack.last().normal().set(capturedArm.normal());
         HeldItemMotion.applyArmInertiaMotion(poseStack, partialTick);
-        renderVanillaArm(minecraft, capturedArm, poseStack, bufferSource, packedLight);
+        MultiBufferSource armBuffer = mirrored ? new MirroredArmBufferSource(bufferSource, minecraft.player.getSkinTextureLocation()) : bufferSource;
+        renderVanillaArm(minecraft, capturedArm, poseStack, armBuffer, packedLight);
     }
     private static void renderVanillaArm(Minecraft minecraft, CapturedArm capturedArm, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
         PlayerRenderer playerRenderer = (PlayerRenderer) minecraft.getEntityRenderDispatcher().getRenderer(minecraft.player);
@@ -75,18 +77,28 @@ public final class VanillaArmRenderer {
             playerRenderer.renderLeftHand(poseStack, bufferSource, packedLight, minecraft.player);
         }
     }
-    public static void renderCapturedArms(Iterable<CapturedArm> capturedArms, MultiBufferSource bufferSource, int packedLight, float partialTick) {
+
+    public static void renderCapturedArms(Iterable<CapturedArm> capturedArms, MultiBufferSource bufferSource, int packedLight,
+                                          float partialTick, boolean mirrored) {
         for (CapturedArm capturedArm : capturedArms) {
-            renderCapturedArm(capturedArm, bufferSource, packedLight, partialTick);
+            renderCapturedArm(capturedArm, bufferSource, packedLight, partialTick, mirrored);
         }
     }
 
-    @Nullable
+    private record MirroredArmBufferSource(MultiBufferSource delegate, net.minecraft.resources.ResourceLocation skin)
+            implements MultiBufferSource {
+        @Override
+        public com.mojang.blaze3d.vertex.VertexConsumer getBuffer(RenderType renderType) {
+            if (renderType == RenderType.entitySolid(skin)) {
+                return delegate.getBuffer(RenderType.entityTranslucent(skin));
+            }
+            return delegate.getBuffer(renderType);
+        }
+    }
+
     private static GeoCube findArmCube(GeoBone bone) {
         return bone.getCubes().isEmpty() ? null : bone.getCubes().get(0);
     }
-
-    @Nullable
     private static HumanoidArm getArm(GeoBone bone) {
         String normalizedName = normalize(bone.getName());
         return switch (normalizedName) {
@@ -114,7 +126,8 @@ public final class VanillaArmRenderer {
     private static String normalize(String name) {
         return name.replace("_", "").replace(" ", "").toLowerCase();
     }
-    private static Matrix4f createPreviewCubeArmPose(PoseStack poseStack, HumanoidArm arm, GeoCube cube) {
+
+    private static Matrix4f createPreviewCubeArmPose(PoseStack poseStack, HumanoidArm arm, GeoCube cube, Matrix4f localOffset) {
         Bounds bounds = findBounds(cube);
         Vector3f previewCenter = new Vector3f(
                 (bounds.minX() + bounds.maxX()) * 0.5F,
@@ -139,23 +152,26 @@ public final class VanillaArmRenderer {
                 -(float) cubePivot.z() / 16.0F
         );
         Vector3f targetCenter = cubeTransform.transformPosition(previewCenter);
-        Vector3f vanillaCenter = arm == HumanoidArm.RIGHT
-                ? new Vector3f(-6.0F, 6.0F, 0.0F).mul(PIXEL)
-                : new Vector3f(6.0F, 6.0F, 0.0F).mul(PIXEL);
+        Vector3f vanillaCenter = arm == HumanoidArm.RIGHT ? new Vector3f(-6.0F, 6.0F, 0.0F).mul(PIXEL) :
+                new Vector3f(6.0F, 6.0F, 0.0F).mul(PIXEL);
         Matrix4f vanillaToPreview = new Matrix4f().identity();
         vanillaToPreview.translate(targetCenter);
         vanillaToPreview.rotateZ((float) cubeRotation.z());
         vanillaToPreview.rotateY((float) cubeRotation.y());
         vanillaToPreview.rotateX((float) cubeRotation.x());
         vanillaToPreview.rotateZ((float) Math.PI);
-        vanillaToPreview.translate(
-                -vanillaCenter.x(),
-                -vanillaCenter.y(),
-                -vanillaCenter.z()
+        Vec3 armSize = cube.size();
+        vanillaToPreview.scale(
+                safeScale((float) armSize.x(), 4.0F),
+                safeScale((float) armSize.y(), 12.0F),
+                safeScale((float) armSize.z(), 4.0F)
         );
-        return new Matrix4f(poseStack.last().pose()).mul(vanillaToPreview);
+        vanillaToPreview.translate(-vanillaCenter.x(), -vanillaCenter.y(), -vanillaCenter.z());
+        return new Matrix4f(poseStack.last().pose()).mul(localOffset).mul(vanillaToPreview);
     }
-
+    private static float safeScale(float size, float vanillaSize) {
+        return size > 0.0F ? size / vanillaSize : 1.0F;
+    }
     private static Bounds findBounds(GeoCube cube) {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
@@ -187,13 +203,6 @@ public final class VanillaArmRenderer {
         return new Bounds(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private record Bounds(
-            float minX,
-            float minY,
-            float minZ,
-            float maxX,
-            float maxY,
-            float maxZ
-    ) {
+    private record Bounds(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
     }
 }

@@ -1,13 +1,14 @@
 package org.toame.food.client;
 
+import org.toame.food.Food;
+import org.toame.food.additions.Empty;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ViewportEvent;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.toame.food.Food;
+import net.minecraftforge.event.TickEvent.ClientTickEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -18,19 +19,26 @@ public final class CameraShake {
 //    public static float debug_p=0.30f;
 //    public static float debug_r=0.03f;
     private static float yaw;
+
     private static float pitch;
+
     private static float roll;
 
+
     private static float yawVel;
+
     private static float pitchVel;
+
     private static float rollVel;
 
+
     private static float prevYaw;
+
     private static float prevPitch;
+
     private static float prevRoll;
 
     private CameraShake() {}
-
     public static void trigger() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
@@ -46,8 +54,9 @@ public final class CameraShake {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
+    public static void onClientTick(ClientTickEvent event) {
+        if (Minecraft.getInstance().player == null) {
+            reset();
             return;
         }
         tick();
@@ -83,6 +92,7 @@ public final class CameraShake {
     }
 
     @SubscribeEvent
+
     public static void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
         Minecraft mc = Minecraft.getInstance();
 
@@ -96,12 +106,15 @@ public final class CameraShake {
         float interpPitch = Mth.lerp(partialTick, prevPitch, pitch);
         float interpRoll = Mth.lerp(partialTick, prevRoll, roll);
 
-        event.setYaw(event.getYaw() + interpYaw);
-        event.setPitch(event.getPitch() + interpPitch);
-        event.setRoll(event.getRoll() + interpRoll);
+        if (Empty.isEatAnimationPlaying()) {
+            CameraRotationComposer.applyCapturedBlockbenchRotation(event);
+        } else {
+            CameraRotationComposer.clearBlockbenchRotation();
+        }
+        CameraRotationComposer.applyForgeOffset(event, interpPitch, interpYaw, interpRoll);
     }
-
     public static void reset() {
+        CameraRotationComposer.clearBlockbenchRotation();
         yaw = 0.0F;
         pitch = 0.0F;
         roll = 0.0F;

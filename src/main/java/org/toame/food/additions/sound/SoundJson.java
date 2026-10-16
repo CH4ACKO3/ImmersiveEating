@@ -3,10 +3,10 @@ package org.toame.food.additions.sound;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import org.toame.food.additions.definiton.FoodDefinition;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import org.toame.food.additions.definiton.FoodDefinition;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -19,7 +19,6 @@ public class SoundJson {
 
     public static JsonObject generate(List<FoodDefinition> definitions) {
         JsonObject root = new JsonObject();
-
         for (FoodDefinition definition : definitions) {
             if (definition.getSounds() == null) {
                 continue;
@@ -30,11 +29,8 @@ public class SoundJson {
                     continue;
                 }
 
-                ResourceLocation soundId = ResourceLocation.tryParse(sound_namespace);
-                if (soundId == null) {
-                    continue;
-                }
-                String name = soundId.getPath(); //如果是eat:eating则为eating
+                ResourceLocation soundId = new ResourceLocation(sound_namespace);
+                String name = soundId.getPath();
 
                 addSound(root, name, soundId.toString());
             }
@@ -42,7 +38,6 @@ public class SoundJson {
 
         return root;
     }
-
     public static JsonObject generate(ResourceManager resourceManager) {
         List<FoodDefinition> definitions = new ArrayList<>();
         Map<ResourceLocation, Resource> resources = resourceManager.listResources("definitions",

@@ -11,16 +11,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.function.Supplier;
 
-public class CustomUsingPacket {
-    private final InteractionHand hand;
-    private final Item customItem;
-    private final Integer count;
-
-    public CustomUsingPacket(InteractionHand hand, Item customItem,Integer count) {
-        this.hand = hand;
-        this.customItem=customItem;
-        this.count=count;
-    }
+public record CustomUsingPacket( InteractionHand hand, Item customItem, int count) {
     public static void encode(CustomUsingPacket packet, FriendlyByteBuf buffer) {
         buffer.writeEnum(packet.hand);
         buffer.writeResourceLocation(ForgeRegistries.ITEMS.getKey(packet.customItem));
@@ -30,23 +21,17 @@ public class CustomUsingPacket {
     public static CustomUsingPacket decode(FriendlyByteBuf buffer) {
         InteractionHand hand = buffer.readEnum(InteractionHand.class);
         ResourceLocation itemId = buffer.readResourceLocation();
-        Item customItem = ForgeRegistries.ITEMS.getValue(itemId);
-        Integer count = buffer.readInt();
-        return new CustomUsingPacket(hand, customItem,count);
+        return new CustomUsingPacket( hand, ForgeRegistries.ITEMS.getValue(itemId), buffer.readInt());
     }
 
     public static void handle(CustomUsingPacket packet, Supplier<NetworkEvent.Context> supplier) {
         NetworkEvent.Context context = supplier.get();
-
         context.enqueueWork(() -> {
             ServerPlayer sp = context.getSender();
-
-            if (sp == null) {
-                return;
-            }
             if (packet.customItem == null || packet.customItem == net.minecraft.world.item.Items.AIR) {
                 return;
             }
+
             ItemStack stack = new ItemStack(packet.customItem, packet.count);
             if (!stack.isEdible() || stack.getUseDuration() <= 0) {
                 return;
@@ -54,7 +39,6 @@ public class CustomUsingPacket {
 
             stack.finishUsingItem(sp.level(), sp);
         });
-
         context.setPacketHandled(true);
     }
 }

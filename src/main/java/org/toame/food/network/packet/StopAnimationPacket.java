@@ -2,44 +2,25 @@ package org.toame.food.network.packet;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 import org.toame.food.init.ModItems;
-import software.bernie.geckolib.animatable.GeoItem;
-
+import org.toame.food.network.ServerAnimationManager;
+import java.util.UUID;
 import java.util.function.Supplier;
 
-public class StopAnimationPacket {
-    public StopAnimationPacket() {
-    }
-
-    public static void encode(StopAnimationPacket packet, FriendlyByteBuf buffer) {
-    }
-
-    public static StopAnimationPacket decode(FriendlyByteBuf buffer) {
-        return new StopAnimationPacket();
-    }
-
+public record StopAnimationPacket(UUID sessionId) {
+    public static void encode(StopAnimationPacket packet, FriendlyByteBuf buffer) { buffer.writeUUID(packet.sessionId); }
+    public static StopAnimationPacket decode(FriendlyByteBuf buffer) { return new StopAnimationPacket(buffer.readUUID()); }
     public static void handle(StopAnimationPacket packet, Supplier<NetworkEvent.Context> supplier) {
         NetworkEvent.Context context = supplier.get();
         context.enqueueWork(() -> {
-            ServerPlayer sp = context.getSender();
-            if (sp == null) {
-                return;
-            }
-
-            ItemStack stack = sp.getMainHandItem();
-            if (stack.isEmpty() || stack.is(ModItems.EMPTY.get())) {
-                return;
-            }
-
-            long id = GeoItem.getId(stack);
-            if (id == Long.MAX_VALUE) {
-                return;
-            }
-
-            ModItems.EMPTY.get().stopTriggeredAnim(sp, id, "eat", "eat");
+            ServerPlayer player = context.getSender();
+            ServerAnimationManager.AnimationState state = ServerAnimationManager.get(player);
+            if (player == null || state == null || !state.sessionId().equals(packet.sessionId)) return;
+            ModItems.EMPTY.get().stopTriggeredAnim(player, state.controllerId(), "eat", "eat");
+            ServerAnimationManager.clear(player);
         });
         context.setPacketHandled(true);
     }
 }
+

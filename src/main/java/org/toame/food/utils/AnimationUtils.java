@@ -1,16 +1,25 @@
 package org.toame.food.utils;
 
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import org.toame.food.additions.Empty;
 import org.toame.food.additions.definiton.FoodDefinitionManager;
+import org.toame.food.client.AnimationResourceChecker;
+import org.toame.food.client.CameraRotationComposer;
+import org.toame.food.client.ClientAnimationManager;
+import org.toame.food.client.ClientSoundHandler;
 import org.toame.food.mixin.Accessor.ItemInHandRendererAccessor;
 import org.toame.food.network.Network;
 import org.toame.food.network.packet.StopAnimationPacket;
 
+import java.util.UUID;
+
 
 public class AnimationUtils {
+    private static UUID animationSessionId;
+    private static long animationControllerId = Long.MAX_VALUE;
     public static ItemStack temp;
     public static int lockedHotbarSlot = -1;
     public static boolean wasUsingCustomItem;
@@ -20,24 +29,95 @@ public class AnimationUtils {
     public static boolean isAnimationLocked() {
         return temp != null && lockedHotbarSlot >= 0;
     }
+    private static boolean animationRequestPending;
+    private static int animationRequestTicks;
+    public static boolean isAnimationRequestPending() { return animationRequestPending; }
+
+    public static void beginAnimationSession(Minecraft mc) {
+        animationSessionId = mc.player == null ? UUID.randomUUID() : ClientAnimationManager.beginSession(mc.player);
+        animationControllerId = resolveControllerId(mc);
+        animationRequestPending = true;
+        animationRequestTicks = 0;
+        activateAnimationLock(mc);
+    }
+    public static UUID getAnimationSessionId() { return animationSessionId; }
+    public static long getAnimationControllerId() { return animationControllerId; }
+    public static void activateAnimationLock(Minecraft mc) {
+        if (mc.player != null && !isAnimationLocked()) {
+            lockedHotbarSlot = mc.player.getInventory().selected;
+            temp = mc.player.getMainHandItem().copy();
+        }
+    }
+    public static void clearAnimationState() {
+        stopAnimationControl();
+        animationSessionId = null;
+        animationControllerId = Long.MAX_VALUE;
+        animationRequestPending = false;
+        animationRequestTicks = 0;
+    }
 
     public static void checkEatAnimationState() {
+        refreshAnimationControllerId(Minecraft.getInstance());
+        if (animationRequestPending && ++animationRequestTicks > 40) {
+            stopAnimationControl();
+            return;
+        }
+
         boolean animationPlaying = Empty.isEatAnimationPlaying();
         if (animationPlaying) {
             wasEatAnimationPlaying = true;
+            animationRequestPending = false;
         } else if (wasEatAnimationPlaying && isAnimationLocked()) {
             stopAnimationControl();
         }
     }
 
     public static void stopAnimationControl() {
-        if (isAnimationLocked()) {
-            Network.CHANNEL.sendToServer(new StopAnimationPacket());
+        if (isAnimationLocked() && animationSessionId != null) {
+            Network.CHANNEL.sendToServer(new StopAnimationPacket(animationSessionId));
         }
-        Empty.stopEatAnimation();
+        Empty.stopEatAnimation(animationControllerId);
+        ClientSoundHandler.stopLocalSounds();
+        if (Minecraft.getInstance().player != null) {
+            ClientAnimationManager.clearSession(Minecraft.getInstance().player);
+        }
         temp = null;
         lockedHotbarSlot = -1;
         wasEatAnimationPlaying = false;
+        animationRequestPending = false;
+        animationRequestTicks = 0;
+        animationControllerId = Long.MAX_VALUE;
+        CameraRotationComposer.clearBlockbenchRotation();
+    }
+
+
+    public static void finishAnimationSession() {
+        ClientSoundHandler.stopLocalSounds();
+        if (Minecraft.getInstance().player != null) {
+            ClientAnimationManager.clearSession(Minecraft.getInstance().player);
+        }
+        temp = null;
+        lockedHotbarSlot = -1;
+        wasEatAnimationPlaying = false;
+        animationRequestPending = false;
+        animationRequestTicks = 0;
+        animationSessionId = null;
+        animationControllerId = Long.MAX_VALUE;
+        CameraRotationComposer.clearBlockbenchRotation();
+    }
+
+    public static void refreshAnimationControllerId(Minecraft mc) {
+        long id = resolveControllerId(mc);
+        if (id != Long.MAX_VALUE) {
+            animationControllerId = id;
+        }
+    }
+
+    private static long resolveControllerId(Minecraft mc) {
+        if (mc == null || mc.player == null) {
+            return Long.MAX_VALUE;
+        }
+        return ClientAnimationManager.getOrCreateControllerId(mc.player);
     }
 
     public static void updateCustomUseState(Minecraft mc) {
@@ -45,10 +125,8 @@ public class AnimationUtils {
             resetCustomUseState();
             return;
         }
-        boolean usingCustomItem = mc.player.isUsingItem()
-                && mc.player.getUsedItemHand() == InteractionHand.MAIN_HAND
-                && FoodDefinitionManager.init_ItemList.contains(mc.player.getUseItem().getItem());
-
+        boolean usingCustomItem = mc.player.isUsingItem() && mc.player.getUsedItemHand() == InteractionHand.MAIN_HAND &&
+                FoodDefinitionManager.init_ItemList.contains(mc.player.getUseItem().getItem());
         if (usingCustomItem) {
             if (!wasUsingCustomItem) {
                 customUseStack = mc.player.getUseItem().copy();
@@ -65,10 +143,28 @@ public class AnimationUtils {
         }
         resetCustomUseState();
     }
+
+    public static void cancelIfHeldItemChanged(Minecraft mc) {
+        if (!isAnimationLocked() || mc.player == null || temp == null) {
+            return;
+        }
+        if (!ItemStack.matches(temp, mc.player.getMainHandItem())) {
+            stopAnimationControl();
+        }
+    }
+
     //切换物品的假动画 实际未切换
     public static void playCustomUseReequipAnimation(Minecraft mc, ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
             return;
+        }
+        // First-person compatibility may request a reequip on the same tick as
+        // eating starts. That reequip must not steal the first animation request.
+        if (isAnimationRequestPending()) {
+            return;
+        }
+        if (AnimationResourceChecker.hasAnimation(stack, "switchin")) {
+            Empty.triggerClientAnimation(stack, "switchin");
         }
         ItemInHandRendererAccessor renderer = (ItemInHandRendererAccessor) mc.gameRenderer.itemInHandRenderer;
         ItemStack fakeStack = stack.copy();
