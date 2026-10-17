@@ -1,4 +1,4 @@
-package org.toame.food.events;
+package org.toame.food.compat;
 
 import com.mojang.logging.LogUtils;
 import org.toame.food.Food;
@@ -17,7 +17,7 @@ import org.slf4j.Logger;
 import java.lang.reflect.Method;
 
 @Mod.EventBusSubscriber(modid = Food.MODID, value = Dist.CLIENT)
-public final class FirstPersonModEvents {
+public final class FirstPersonMod {
 
     private static final float VANILLA_PITCH_MAX = 60.0F;
 
@@ -33,11 +33,10 @@ public final class FirstPersonModEvents {
 
     private static Method setEnabledMethod;
 
-    private FirstPersonModEvents() {
+    private FirstPersonMod() {
     }
 
     @SubscribeEvent
-
     public static void onClientTick(ClientTickEvent event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || !mc.options.getCameraType().isFirstPerson()) {
@@ -59,7 +58,6 @@ public final class FirstPersonModEvents {
     }
 
     @SubscribeEvent
-
     public static void onClientLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         Minecraft mc = Minecraft.getInstance();
         if (event.getPlayer() != null && mc.player != null && event.getPlayer() != mc.player) {
@@ -78,7 +76,7 @@ public final class FirstPersonModEvents {
             return false;
         }
         try {
-            Class<?> api = Class.forName("dev.tr7zw.firstperson.api.FirstPersonAPI", false, FirstPersonModEvents.class.getClassLoader());
+            Class<?> api = Class.forName("dev.tr7zw.firstperson.api.FirstPersonAPI", false, FirstPersonMod.class.getClassLoader());
             isEnabledMethod = api.getMethod("isEnabled");
             setEnabledMethod = api.getMethod("setEnabled", boolean.class);
             return true;

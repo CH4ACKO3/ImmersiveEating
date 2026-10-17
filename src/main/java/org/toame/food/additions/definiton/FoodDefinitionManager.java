@@ -8,6 +8,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 import java.util.*;
 
@@ -42,7 +43,7 @@ public class FoodDefinitionManager extends SimpleJsonResourceReloadListener {
             list.add(definition);
             ResourceLocation itemId = ResourceLocation.tryParse(definition.getItem());
             Item item = itemId == null ? null : BuiltInRegistries.ITEM.get(itemId);
-            if (item != null && item != net.minecraft.world.item.Items.AIR) {
+            if (item != null && item != Items.AIR) {
                 init_ItemIdList.add(itemId.toString());
                 init_ItemList.add(item);
             }
