@@ -1,0 +1,36 @@
+package org.toame.food.events;
+
+import net.minecraft.world.InteractionHand;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import org.toame.food.Food;
+import org.toame.food.additions.definiton.FoodDefinitionManager;
+
+import static org.toame.food.config.Config.ENABLE_RIGHT_BUTTON;
+
+@Mod.EventBusSubscriber(modid = Food.MODID)
+public final class ServerGameplayEvents {
+    private ServerGameplayEvents() {
+    }
+
+    @SubscribeEvent
+    public static void onRightClick(PlayerInteractEvent event) {
+        if (!ENABLE_RIGHT_BUTTON.get() || event.getEntity().isCrouching() || event.getHand() != InteractionHand.MAIN_HAND
+                || !isRightClick(event)) {
+            return;
+        }
+
+        if (FoodDefinitionManager.init_ItemList.contains(event.getItemStack().getItem())) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static boolean isRightClick(PlayerInteractEvent event) {
+        return event instanceof PlayerInteractEvent.RightClickBlock
+                || event instanceof PlayerInteractEvent.RightClickItem
+                || event instanceof PlayerInteractEvent.RightClickEmpty
+                || event instanceof PlayerInteractEvent.EntityInteract
+                || event instanceof PlayerInteractEvent.EntityInteractSpecific;
+    }
+}

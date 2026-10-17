@@ -9,7 +9,6 @@ import net.minecraft.world.phys.Vec3;
 
 import static org.toame.food.utils.AnimationUtils.isAnimationLocked;
 
-
 public class HeldItemMotion {
     /*
     idleMotion       自然晃动
@@ -127,7 +126,8 @@ public class HeldItemMotion {
         //摇晃强度
         float intensity = mc.player.isUsingItem() ? 0.15F : 1.0F;
 
-        poseStack.mulPose(Axis.XP.rotationDegrees(pitch * intensity));
+        float pitchIntensity = intensity * 0.5F;
+        poseStack.mulPose(Axis.XP.rotationDegrees(pitch * pitchIntensity));
 
         poseStack.mulPose(Axis.ZP.rotationDegrees(roll * intensity));
     }
@@ -259,7 +259,7 @@ public class HeldItemMotion {
             //上下移动强度
 
             jumpYVel += 0.0025F;
-            jumpPitchVel -= 0.3F;
+            jumpPitchVel -= 0.1F;
         }
         //landing
         if (!wasOnGround && onGround && prevVerticalVel < -0.05F) {
@@ -267,7 +267,8 @@ public class HeldItemMotion {
             float impact = Mth.clamp(-prevVerticalVel * 1.5F, 0.0F, 1.0F);
             //0.035f 1.4F系数越小落地越软 或者说落地上下摇晃程度
             jumpYVel -= 0.025F + impact * 0.035F;
-            jumpPitchVel += 0.8F + impact * 1.4F;
+            // Limit landing pitch carry-over so the next sprint jump cannot expose the arm end.
+            jumpPitchVel += 0.25F + impact * 0.45F;
         }
 
         // 竖直
@@ -310,9 +311,11 @@ public class HeldItemMotion {
         float pitch = Mth.lerp(partialTick, prevJumpPitch, jumpPitch);
 
         float intensity = mc.player.isUsingItem() ? 0.15F : 1.0F;
+        float verticalIntensity = intensity / 3.0F;
+        float pitchIntensity = mc.player.isSprinting() && !mc.player.onGround() ? intensity / 12.0F : intensity;
 
-        poseStack.translate(0.0F, y * intensity, 0.0F);
-        poseStack.mulPose(Axis.XP.rotationDegrees(pitch * intensity));
+        poseStack.translate(0.0F, y * verticalIntensity, 0.0F);
+        poseStack.mulPose(Axis.XP.rotationDegrees(pitch * pitchIntensity));
     }
 
     /*

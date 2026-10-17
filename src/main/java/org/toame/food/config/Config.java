@@ -5,7 +5,11 @@ import net.minecraftforge.common.ForgeConfigSpec;
 public class Config {
     public static final ForgeConfigSpec COMMON_SPEC;
 
+
     public static final ForgeConfigSpec.BooleanValue ENABLE_RIGHT_BUTTON;
+
+    public static final boolean HIDE_HOTBAR = false;
+
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -17,7 +21,6 @@ public class Config {
 
         COMMON_SPEC = builder.build();
     }
-
     private Config() {
     }
 }

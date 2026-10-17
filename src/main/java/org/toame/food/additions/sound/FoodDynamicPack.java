@@ -1,6 +1,7 @@
 package org.toame.food.additions.sound;
 
 import com.google.gson.JsonObject;
+import org.toame.food.Food;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -9,9 +10,9 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.metadata.MetadataSectionSerializer;
 import net.minecraft.server.packs.metadata.pack.PackMetadataSection;
 import net.minecraft.server.packs.resources.IoSupplier;
-import org.toame.food.Food;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -19,7 +20,9 @@ import java.util.Set;
 public class FoodDynamicPack implements PackResources {
 
     private static final PackMetadataSection METADATA = new PackMetadataSection(Component.literal("Provides models and animations."), 15);
+
     @Override
+
     public IoSupplier<InputStream> getResource(PackType type, ResourceLocation location) {
         if (type != PackType.CLIENT_RESOURCES) {
             return null;
@@ -37,6 +40,7 @@ public class FoodDynamicPack implements PackResources {
     }
 
     @Override
+
     public Set<String> getNamespaces(PackType type) {
         if (type == PackType.CLIENT_RESOURCES) {
             return Set.of(Food.MODID);
@@ -45,6 +49,7 @@ public class FoodDynamicPack implements PackResources {
     }
 
     @Override
+
     public void listResources(PackType type, String namespace, String prefix, ResourceOutput output) {
         if (type != PackType.CLIENT_RESOURCES) {
             return;
@@ -64,19 +69,27 @@ public class FoodDynamicPack implements PackResources {
     }
 
     @Override
+
     public IoSupplier<InputStream> getRootResource(String... path) {
+        if (path.length == 1 && "pack.png".equals(path[0])) {
+            return () -> {
+                InputStream icon = FoodDynamicPack.class.getResourceAsStream("/pack.png");
+                return icon;
+            };
+        }
         return null;
     }
 
     @Override
+
     public <T> T getMetadataSection(MetadataSectionSerializer<T> serializer) {
         if (serializer == PackMetadataSection.TYPE) {
             return (T) METADATA;
         }
         return null;
     }
-
     @Override
+
     public String packId() {
         return "food_dynamic";
     }
@@ -84,6 +97,7 @@ public class FoodDynamicPack implements PackResources {
         return SoundJson.generate(Minecraft.getInstance().getResourceManager());
     }
     @Override
+
     public void close() {
     }
 }

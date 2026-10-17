@@ -1,6 +1,7 @@
 package org.toame.food.network.packet;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -9,48 +10,38 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.toame.food.network.ServerAnimationManager;
 import org.toame.food.unique.UniqueItem;
-
+import java.util.UUID;
 import java.util.function.Supplier;
 
-public class FinishUsePacket {
-    private final InteractionHand hand;
-
-    public FinishUsePacket(InteractionHand hand) {
-        this.hand = hand;
-    }
-    public static void encode(FinishUsePacket packet, FriendlyByteBuf buffer) {
-        buffer.writeEnum(packet.hand);
-    }
-
-    public static FinishUsePacket decode(FriendlyByteBuf buffer) {
-        return new FinishUsePacket(buffer.readEnum(InteractionHand.class));
-    }
-
+public record FinishUsePacket(UUID sessionId, InteractionHand hand) {
+    public static void encode(FinishUsePacket packet, FriendlyByteBuf buffer) { buffer.writeUUID(packet.sessionId); buffer.writeEnum(packet.hand); }
+    public static FinishUsePacket decode(FriendlyByteBuf buffer) { return new FinishUsePacket(buffer.readUUID(), buffer.readEnum(InteractionHand.class)); }
     public static void handle(FinishUsePacket packet, Supplier<NetworkEvent.Context> supplier) {
         NetworkEvent.Context context = supplier.get();
-
         context.enqueueWork(() -> {
-            ServerPlayer sp = context.getSender();
-
-            if (sp == null) {
-                return;
+            ServerPlayer player = context.getSender();
+            if (player == null || packet.hand == null || !ServerAnimationManager.matchesSession(player, packet.sessionId, packet.hand)) return;
+            try {
+                ItemStack stack = player.getItemInHand(packet.hand);
+                if (UniqueItem.UNIQUE_ITEM_MAP.get(ForgeRegistries.ITEMS.getKey(stack.getItem())) != null) {
+                    stack.shrink(1);
+                    player.setItemInHand(packet.hand, stack);
+                    player.getInventory().add(new ItemStack(Items.BOWL));
+                    player.playNotifySound(SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 1.0F, 1.0F);
+                }
+                ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                if (stack.isEmpty() || !stack.isEdible()) {
+                    if (!new ResourceLocation("kaleidoscope_cookery", "sakura_fubuki").equals(id)
+                            && !new ResourceLocation("kaleidoscope_cookery", "flower_tea").equals(id)) return;
+                }
+                player.setItemInHand(packet.hand, stack.finishUsingItem(player.level(), player));
+            } finally {
+                ServerAnimationManager.clear(player);
             }
-
-            ItemStack stack = sp.getItemInHand(packet.hand);
-            if (UniqueItem.UNIQUE_ITEM_MAP.get(ForgeRegistries.ITEMS.getKey(stack.getItem()))!=null){
-                stack.shrink(1);
-                sp.setItemInHand(packet.hand,stack);
-                sp.getInventory().add(new ItemStack(Items.BOWL,1));
-                sp.playNotifySound(SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 1.0F, 1.0F);
-            }
-            if (stack.isEmpty() || !stack.isEdible() || stack.getUseDuration() <= 0) {
-                return;
-            }
-            ItemStack result = stack.finishUsingItem(sp.level(), sp);
-            sp.setItemInHand(packet.hand, result);
         });
-
         context.setPacketHandled(true);
     }
 }
+

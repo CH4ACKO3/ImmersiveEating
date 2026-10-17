@@ -103,7 +103,7 @@ minecraft {
         client {
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             property 'forge.enabledGameTestNamespaces', mod_id
-            args '--username', 'XianYue'
+            args '--username', 'xianyue'
         }
 
         server {
@@ -191,7 +191,7 @@ dependencies {
     implementation fg.deobf("software.bernie.geckolib:geckolib-forge-${minecraft_version}:${geckolib_version}")
     implementation fg.deobf("maven.modrinth:kaleidoscope-cookery:1.4.1-forge+mc1.20.1")
 
-
+//    implementation fg.deobf("maven.modrinth:fYYSAh4R:zxrGLIlw")
     implementation("com.eliotlash.mclib:mclib:20")
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'

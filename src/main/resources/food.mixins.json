@@ -8,6 +8,7 @@
   ],
   "client": [
     "ClientPackSourceMixin",
+    "ItemInHandRendererMixin",
     "Accessor.ItemInHandRendererAccessor",
     "KeyboardHandlerMixin",
     "ItemRendererMixin",

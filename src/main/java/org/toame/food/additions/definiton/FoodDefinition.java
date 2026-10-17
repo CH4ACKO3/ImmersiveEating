@@ -1,12 +1,14 @@
 package org.toame.food.additions.definiton;
 
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 public class FoodDefinition {
     private String item;
 
+
     private Map<String, String> sounds;
+
     private List<String> invisible;
 
     public String getItem() {
@@ -16,7 +18,6 @@ public class FoodDefinition {
     public Map<String, String> getSounds() {
         return sounds;
     }
-
     public List<String> getInvisible() {
         return invisible;
     }
